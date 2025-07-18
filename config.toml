@@ -1,0 +1,33 @@
+[database]
+# Databasing not yet supported
+url = "postgresql://user:pass@localhost/imessage_db"
+pool_size = 10
+max_overflow = 20
+pool_timeout = 30
+enable_storage = false
+
+[apple]
+chat_db_path = "~/Library/Messages/chat.db"
+attachments_path = "~/Library/Messages/Attachments"
+permissions_check = true
+
+[monitoring]
+poll_interval_seconds = 3
+startup_lookback_hours = 24
+max_batch_size = 100
+enable_real_time = true
+
+[contacts]
+phone_numbers = []
+include_unknown = true
+group_chats = false
+
+[date_range]
+# start_date = "2024-01-01T00:00:00"
+# end_date = "2024-12-31T23:59:59"
+
+[outbound]
+method = "applescript"
+rate_limit_per_minute = 30
+enable_auto_reply = false
+auto_reply_triggers = []

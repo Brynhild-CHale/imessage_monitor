@@ -1,16 +1,61 @@
 [project]
 name = "imessage-monitor"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Python library for monitoring and extracting iMessage data with real-time capabilities"
 readme = "README.md"
+license = { text = "MIT" }
 authors = [
     { name = "Christian Hale", email = "bhschristian@gmail.com" }
 ]
-requires-python = ">=3.10"
-dependencies = []
+maintainers = [
+    { name = "Christian Hale", email = "bhschristian@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "ascii-magic>=2.3.0",
+    "pillow-heif>=1.0.0",
+    "tomli-w>=1.2.0",
+]
+keywords = [
+    "imessage",
+    "monitoring",
+    "messages",
+    "macos",
+    "ascii-art",
+    "real-time",
+    "chat",
+    "sms"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Chat",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Monitoring",
+    "Topic :: Utilities"
+]
 
-[project.scripts]
-imessage-monitor = "imessage_monitor:main"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+test = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+]
+
+[project.urls]
+
 
 [build-system]
 requires = ["hatchling"]
