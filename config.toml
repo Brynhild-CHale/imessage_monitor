@@ -1,11 +1,3 @@
-[database]
-# Databasing not yet supported
-url = "postgresql://user:pass@localhost/imessage_db"
-pool_size = 10
-max_overflow = 20
-pool_timeout = 30
-enable_storage = false
-
 [apple]
 chat_db_path = "~/Library/Messages/chat.db"
 attachments_path = "~/Library/Messages/Attachments"

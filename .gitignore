@@ -8,3 +8,10 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Development
+dev/
+CLAUDE.md
+
+# Other
+.DS_Store
