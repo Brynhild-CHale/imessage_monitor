@@ -629,8 +629,6 @@ def format_config_for_display(config) -> str:
     output += display_config_section("outbound", {
         "method": config.outbound.method,
         "rate_limit_per_minute": config.outbound.rate_limit_per_minute,
-        "enable_auto_reply": config.outbound.enable_auto_reply,
-        "auto_reply_triggers": config.outbound.auto_reply_triggers
     })
     
     return output
@@ -684,8 +682,6 @@ def display_outbound_config(outbound_config) -> str:
     return display_config_section("outbound", {
         "method": outbound_config.method,
         "rate_limit_per_minute": outbound_config.rate_limit_per_minute,
-        "enable_auto_reply": outbound_config.enable_auto_reply,
-        "auto_reply_triggers": outbound_config.auto_reply_triggers
     })
 
 

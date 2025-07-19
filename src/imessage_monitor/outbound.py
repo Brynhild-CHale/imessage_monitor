@@ -462,86 +462,6 @@ class ShortcutsSender:
             return False
 
 
-class AutoReplyHandler:
-    """Handles automatic replies based on triggers."""
-    
-    def __init__(self, config: Config, outbound_sender: OutboundMessageSender):
-        self.config = config
-        self.outbound_sender = outbound_sender
-        self.enabled = config.outbound.enable_auto_reply
-        self.triggers = config.outbound.auto_reply_triggers or []
-    
-    async def process_message_for_auto_reply(
-        self, 
-        sender: str, 
-        content: str
-    ) -> bool:
-        """Check if message triggers auto-reply and send response."""
-        if not self.enabled or not content:
-            return False
-        
-        try:
-            trigger = self.check_triggers(content)
-            if trigger:
-                reply_message = self.build_auto_reply(trigger, content)
-                success = await self.send_auto_reply(sender, reply_message)
-                if success:
-                    self.outbound_sender.stats.increment_auto_replies()
-                return success
-            return False
-            
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Auto-reply processing error: {e}")
-            return False
-    
-    def check_triggers(self, content: str) -> Optional[str]:
-        """Check if content matches any auto-reply triggers."""
-        if not self.triggers or not content:
-            return None
-        
-        content_lower = content.lower().strip()
-        
-        for trigger in self.triggers:
-            if isinstance(trigger, str):
-                if trigger.lower() in content_lower:
-                    return trigger
-            elif isinstance(trigger, dict):
-                # Support for more complex trigger configurations
-                pattern = trigger.get('pattern', '')
-                if pattern.lower() in content_lower:
-                    return trigger.get('reply', pattern)
-        
-        return None
-    
-    def build_auto_reply(self, trigger: str, original_message: str) -> str:
-        """Build auto-reply message based on trigger."""
-        # Basic auto-reply templates
-        reply_templates = {
-            'meeting': "Thanks for the meeting reminder! I'll be there.",
-            'urgent': "I'll respond to your urgent message as soon as possible.",
-            'hello': "Hello! Thanks for your message.",
-            'help': "I'll help you with that when I'm available.",
-            'thanks': "You're welcome!",
-            'status': "I'm currently unavailable but will respond soon."
-        }
-        
-        # Try to find a specific template for the trigger
-        trigger_lower = trigger.lower()
-        for template_key, template_msg in reply_templates.items():
-            if template_key in trigger_lower:
-                return template_msg
-        
-        # Default auto-reply
-        return f"Auto-reply: Thank you for your message about '{trigger}'. I'll respond when available."
-    
-    async def send_auto_reply(self, recipient: str, reply_message: str) -> bool:
-        """Send auto-reply message."""
-        try:
-            return await self.outbound_sender.send_message(recipient, reply_message)
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Failed to send auto-reply to {recipient}: {e}")
-            return False
-
 
 class RateLimiter:
     """Rate limiter for outbound messages."""
@@ -584,7 +504,6 @@ class OutboundStats:
     def __init__(self):
         self.messages_sent = 0
         self.attachments_sent = 0
-        self.auto_replies_sent = 0
         self.send_failures = 0
         self.rate_limit_delays = 0
         self.applescript_sends = 0
@@ -598,9 +517,6 @@ class OutboundStats:
         """Increment attachments sent count."""
         self.attachments_sent += 1
     
-    def increment_auto_replies(self) -> None:
-        """Increment auto-replies sent count."""
-        self.auto_replies_sent += 1
     
     def increment_failures(self) -> None:
         """Increment send failures count."""
@@ -623,7 +539,6 @@ class OutboundStats:
         return {
             "messages_sent": self.messages_sent,
             "attachments_sent": self.attachments_sent,
-            "auto_replies_sent": self.auto_replies_sent,
             "send_failures": self.send_failures,
             "rate_limit_delays": self.rate_limit_delays,
             "applescript_sends": self.applescript_sends,
@@ -634,7 +549,6 @@ class OutboundStats:
         """Reset all statistics."""
         self.messages_sent = 0
         self.attachments_sent = 0
-        self.auto_replies_sent = 0
         self.send_failures = 0
         self.rate_limit_delays = 0
         self.applescript_sends = 0

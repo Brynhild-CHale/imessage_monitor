@@ -9,10 +9,11 @@ startup_lookback_hours = 24
 max_batch_size = 100
 enable_real_time = true
 
-[contacts]
-phone_numbers = []
-include_unknown = true
-group_chats = false
+[contact-filter]
+outbound_behavior = "none" # "whitelist" | "blacklist" | "none"
+outbound_ids = []
+inbound_behavior = "none" # "whitelist" | "blacklist" | "none"
+inbound_ids = []
 
 [date_range]
 # start_date = "2024-01-01T00:00:00"
@@ -21,5 +22,3 @@ group_chats = false
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []

@@ -168,14 +168,10 @@ class TestOutboundConfig:
         config = OutboundConfig(
             method="shortcuts",
             rate_limit_per_minute=60,
-            enable_auto_reply=True,
-            auto_reply_triggers=["help", "status"]
         )
         
         assert config.method == "shortcuts"
         assert config.rate_limit_per_minute == 60
-        assert config.enable_auto_reply is True
-        assert config.auto_reply_triggers == ["help", "status"]
 
     def test_outbound_config_defaults(self):
         """Test OutboundConfig with defaults."""
@@ -183,8 +179,6 @@ class TestOutboundConfig:
         
         assert config.method == "applescript"
         assert config.rate_limit_per_minute == 30
-        assert config.enable_auto_reply is False
-        assert config.auto_reply_triggers is None
 
 
 class TestConfig:
@@ -236,8 +230,6 @@ end_date = "2023-01-31T23:59:59"
 [outbound]
 method = "shortcuts"
 rate_limit_per_minute = 60
-enable_auto_reply = true
-auto_reply_triggers = ["help", "status"]
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -289,8 +281,6 @@ group_chats = true
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -467,8 +457,6 @@ group_chats = true
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -650,8 +638,6 @@ group_chats = true
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:

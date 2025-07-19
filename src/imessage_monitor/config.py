@@ -67,8 +67,6 @@ class OutboundConfig:
     """Outbound messaging configuration."""
     method: str = "applescript"  # "applescript", "shortcuts"
     rate_limit_per_minute: int = 30
-    enable_auto_reply: bool = False
-    auto_reply_triggers: Optional[List[str]] = None
 
 
 @dataclass
@@ -119,7 +117,7 @@ class Config:
             monitoring=MonitoringConfig(),
             contacts=ContactFilter(phone_numbers=[]),
             date_range=DateRange(),
-            outbound=OutboundConfig(auto_reply_triggers=[])
+            outbound=OutboundConfig()
         )
     
     def validate(self) -> bool:
