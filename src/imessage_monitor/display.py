@@ -590,14 +590,6 @@ def format_config_for_display(config) -> str:
     """Format entire configuration for readable display."""
     output = "=== iMessage Monitor Configuration ===\n\n"
     
-    output += display_config_section("database", {
-        "url": config.database.url,
-        "pool_size": config.database.pool_size,
-        "max_overflow": config.database.max_overflow,
-        "pool_timeout": config.database.pool_timeout
-    })
-    output += "\n"
-    
     output += display_config_section("apple", {
         "chat_db_path": config.apple.chat_db_path,
         "attachments_path": config.apple.attachments_path,
@@ -607,7 +599,6 @@ def format_config_for_display(config) -> str:
     
     output += display_config_section("monitoring", {
         "poll_interval_seconds": config.monitoring.poll_interval_seconds,
-        "startup_lookback_hours": config.monitoring.startup_lookback_hours,
         "max_batch_size": config.monitoring.max_batch_size,
         "enable_real_time": config.monitoring.enable_real_time
     })
@@ -662,7 +653,6 @@ def display_monitoring_config(monitoring_config) -> str:
     """Format monitoring configuration section."""
     return display_config_section("monitoring", {
         "poll_interval_seconds": monitoring_config.poll_interval_seconds,
-        "startup_lookback_hours": monitoring_config.startup_lookback_hours,
         "max_batch_size": monitoring_config.max_batch_size,
         "enable_real_time": monitoring_config.enable_real_time
     })

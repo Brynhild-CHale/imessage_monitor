@@ -292,7 +292,7 @@ def analyze_payload_data(payload_data: bytes) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_recent_messages(db_path: str, limit: int = 50) -> List[Dict[str, Any]]:
+def get_recent_messages(db_path: str, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
     """Get recent messages with all associated data."""
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -361,10 +361,10 @@ def get_recent_messages(db_path: str, limit: int = 50) -> List[Dict[str, Any]]:
         
         GROUP BY m.ROWID
         ORDER BY m.date DESC
-        LIMIT ?
+        LIMIT ? OFFSET ?
         """
         
-        cursor.execute(query, (limit,))
+        cursor.execute(query, (limit, offset))
         results = cursor.fetchall()
         
         # Get column names

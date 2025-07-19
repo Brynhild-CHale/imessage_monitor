@@ -2,6 +2,7 @@
 import asyncio
 import signal
 import sys
+from pathlib import Path
 from imessage_monitor import iMessageMonitor
 from imessage_monitor.display import pretty_print_bubble, pretty_print_reaction, pretty_print_sticker
 
@@ -10,7 +11,15 @@ class RealTimeMonitor:
     """Real-time iMessage monitor with graceful shutdown."""
     
     def __init__(self, enable_ascii_art: bool = False):
-        self.monitor = iMessageMonitor()
+        # Check if config.toml exists in current directory
+        config_path = Path("config.toml")
+        if config_path.exists():
+            print(f"📋 Using config file: {config_path.absolute()}")
+            self.monitor = iMessageMonitor(str(config_path))
+        else:
+            print("📋 No config.toml found, using default configuration")
+            self.monitor = iMessageMonitor()
+        
         self.enable_ascii_art = enable_ascii_art
         self.running = False
         self.message_count = 0

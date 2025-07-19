@@ -15,6 +15,7 @@ dependencies = [
     "ascii-magic>=2.3.0",
     "pillow-heif>=1.0.0",
     "tomli-w>=1.2.0",
+    "watchdog>=6.0.0",
 ]
 keywords = [
     "imessage",

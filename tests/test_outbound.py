@@ -144,7 +144,6 @@ class TestOutboundMessageSender:
     def config(self):
         """Create test config."""
         return Config(
-            database=Mock(),
             apple=Mock(),
             monitoring=Mock(),
             contacts=Mock(),
