@@ -590,14 +590,6 @@ def format_config_for_display(config) -> str:
     """Format entire configuration for readable display."""
     output = "=== iMessage Monitor Configuration ===\n\n"
     
-    output += display_config_section("database", {
-        "url": config.database.url,
-        "pool_size": config.database.pool_size,
-        "max_overflow": config.database.max_overflow,
-        "pool_timeout": config.database.pool_timeout
-    })
-    output += "\n"
-    
     output += display_config_section("apple", {
         "chat_db_path": config.apple.chat_db_path,
         "attachments_path": config.apple.attachments_path,
@@ -607,16 +599,16 @@ def format_config_for_display(config) -> str:
     
     output += display_config_section("monitoring", {
         "poll_interval_seconds": config.monitoring.poll_interval_seconds,
-        "startup_lookback_hours": config.monitoring.startup_lookback_hours,
         "max_batch_size": config.monitoring.max_batch_size,
         "enable_real_time": config.monitoring.enable_real_time
     })
     output += "\n"
     
     output += display_config_section("contacts", {
-        "phone_numbers": config.contacts.phone_numbers,
-        "include_unknown": config.contacts.include_unknown,
-        "group_chats": config.contacts.group_chats
+        "outbound_behavior": config.contacts.outbound_behavior,
+        "outbound_ids": config.contacts.outbound_ids,
+        "inbound_behavior": config.contacts.inbound_behavior,
+        "inbound_ids": config.contacts.inbound_ids
     })
     output += "\n"
     
@@ -629,8 +621,6 @@ def format_config_for_display(config) -> str:
     output += display_config_section("outbound", {
         "method": config.outbound.method,
         "rate_limit_per_minute": config.outbound.rate_limit_per_minute,
-        "enable_auto_reply": config.outbound.enable_auto_reply,
-        "auto_reply_triggers": config.outbound.auto_reply_triggers
     })
     
     return output
@@ -664,7 +654,6 @@ def display_monitoring_config(monitoring_config) -> str:
     """Format monitoring configuration section."""
     return display_config_section("monitoring", {
         "poll_interval_seconds": monitoring_config.poll_interval_seconds,
-        "startup_lookback_hours": monitoring_config.startup_lookback_hours,
         "max_batch_size": monitoring_config.max_batch_size,
         "enable_real_time": monitoring_config.enable_real_time
     })
@@ -684,8 +673,6 @@ def display_outbound_config(outbound_config) -> str:
     return display_config_section("outbound", {
         "method": outbound_config.method,
         "rate_limit_per_minute": outbound_config.rate_limit_per_minute,
-        "enable_auto_reply": outbound_config.enable_auto_reply,
-        "auto_reply_triggers": outbound_config.auto_reply_triggers
     })
 
 

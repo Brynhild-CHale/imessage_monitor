@@ -5,6 +5,91 @@ import plistlib
 import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from datetime import datetime
+from .utils import datetime_to_apple_timestamp
+from .config import DateRange, ContactFilter
+
+
+def should_include_message(message: Dict[str, Any], contact_filter: ContactFilter) -> bool:
+    """Determine if a message should be included based on contact filtering rules.
+    
+    Chat-level filtering takes precedence over individual-level filtering.
+    
+    Args:
+        message: Message dictionary with contact information
+        contact_filter: ContactFilter configuration
+        
+    Returns:
+        True if message should be included, False if filtered out
+    """
+    # Step 1: Check chat-level filtering first (has precedence)
+    chat_id = message.get('chat_identifier') or message.get('chat_guid')
+    if chat_id:
+        # Determine if this is an outbound or inbound message for chat-level filtering
+        is_outbound = message.get('is_from_me', False)
+        
+        if is_outbound:
+            behavior = contact_filter.outbound_behavior
+            ids_list = contact_filter.outbound_ids
+        else:
+            behavior = contact_filter.inbound_behavior
+            ids_list = contact_filter.inbound_ids
+        
+        # Apply chat-level filtering
+        if behavior == "whitelist" and chat_id not in ids_list:
+            return False  # Chat not in whitelist
+        elif behavior == "blacklist" and chat_id in ids_list:
+            return False  # Chat is blacklisted
+        # If chat passes chat-level filtering, include message regardless of individual sender
+        if behavior in ["whitelist", "blacklist"]:
+            return True
+    
+    # Step 2: Apply individual-level filtering (only if no chat-level decision made)
+    individual_id = message.get('handle_id_str') or message.get('uncanonicalized_id')
+    if not individual_id:
+        # No individual ID found - include by default
+        return True
+    
+    # Determine if this is an outbound or inbound message for individual-level filtering
+    is_outbound = message.get('is_from_me', False)
+    
+    if is_outbound:
+        behavior = contact_filter.outbound_behavior
+        ids_list = contact_filter.outbound_ids
+    else:
+        behavior = contact_filter.inbound_behavior
+        ids_list = contact_filter.inbound_ids
+    
+    # Apply individual-level filtering
+    if behavior == "none":
+        return True
+    elif behavior == "whitelist":
+        return individual_id in ids_list
+    elif behavior == "blacklist":
+        return individual_id not in ids_list
+    else:
+        return True  # Unknown behavior - default to include
+
+
+def apply_contact_filter(messages: List[Dict[str, Any]], contact_filter: Optional[ContactFilter]) -> List[Dict[str, Any]]:
+    """Filter a list of messages based on contact filtering rules.
+    
+    Args:
+        messages: List of message dictionaries
+        contact_filter: Optional ContactFilter configuration
+        
+    Returns:
+        Filtered list of messages
+    """
+    if not contact_filter:
+        return messages
+    
+    # Check if any filtering is actually enabled
+    if (contact_filter.outbound_behavior == "none" and 
+        contact_filter.inbound_behavior == "none"):
+        return messages
+    
+    return [msg for msg in messages if should_include_message(msg, contact_filter)]
 
 
 def decode_attributed_body(attributed_body: bytes) -> Optional[str]:
@@ -292,14 +377,34 @@ def analyze_payload_data(payload_data: bytes) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_recent_messages(db_path: str, limit: int = 50) -> List[Dict[str, Any]]:
+def get_recent_messages(db_path: str, limit: int = 50, offset: int = 0, date_range: Optional[DateRange] = None, contact_filter: Optional[ContactFilter] = None) -> List[Dict[str, Any]]:
     """Get recent messages with all associated data."""
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         cursor = conn.cursor()
         
+        # Build date filter conditions and parameters
+        date_conditions = []
+        query_params = []
+        
+        if date_range:
+            if date_range.start_date:
+                start_timestamp = datetime_to_apple_timestamp(date_range.start_date)
+                date_conditions.append("m.date >= ?")
+                query_params.append(start_timestamp)
+            
+            if date_range.end_date:
+                end_timestamp = datetime_to_apple_timestamp(date_range.end_date)
+                date_conditions.append("m.date <= ?")
+                query_params.append(end_timestamp)
+        
+        # Build WHERE clause
+        where_clause = ""
+        if date_conditions:
+            where_clause = "WHERE " + " AND ".join(date_conditions)
+        
         # Complex query to get messages with all related data
-        query = """
+        query = f"""
         SELECT 
             m.ROWID as message_id,
             m.guid as message_guid,
@@ -359,12 +464,15 @@ def get_recent_messages(db_path: str, limit: int = 50) -> List[Dict[str, Any]]:
         LEFT JOIN message_attachment_join maj ON m.ROWID = maj.message_id
         LEFT JOIN attachment a ON maj.attachment_id = a.ROWID
         
+        {where_clause}
         GROUP BY m.ROWID
         ORDER BY m.date DESC
-        LIMIT ?
+        LIMIT ? OFFSET ?
         """
         
-        cursor.execute(query, (limit,))
+        # Add limit and offset to parameters
+        query_params.extend([limit, offset])
+        cursor.execute(query, query_params)
         results = cursor.fetchall()
         
         # Get column names
@@ -413,6 +521,11 @@ def get_recent_messages(db_path: str, limit: int = 50) -> List[Dict[str, Any]]:
             messages.append(message_dict)
         
         conn.close()
+        
+        # Apply contact filtering if specified
+        if contact_filter:
+            messages = apply_contact_filter(messages, contact_filter)
+        
         return messages
         
     except sqlite3.Error as e:

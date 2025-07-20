@@ -134,6 +134,87 @@ config.monitoring.poll_interval_seconds = 1  # Faster polling
 monitor = iMessageMonitor(config_path="path/to/config.toml")
 ```
 
+### Contact Filtering
+
+Filter messages by specific contacts with whitelist/blacklist functionality:
+
+```python
+from imessage_monitor import iMessageMonitor
+from imessage_monitor.config import ContactFilter
+
+# Create contact filter
+contact_filter = ContactFilter(
+    outbound_behavior="whitelist",  # Only include outbound messages to these contacts
+    outbound_ids=["+1234567890", "friend@example.com"],
+    inbound_behavior="blacklist",   # Exclude inbound messages from these contacts
+    inbound_ids=["spam@example.com", "+9876543210"]
+)
+
+# Apply filter to message retrieval
+config = Config.default()
+config.contacts = contact_filter
+monitor = iMessageMonitor()
+filtered_messages = monitor.get_recent_messages(limit=100)
+```
+
+Contact filtering supports:
+- **Chat-level filtering**: Group chats can be whitelisted/blacklisted by chat ID
+- **Individual-level filtering**: Individual contacts filtered by phone/email
+- **Precedence**: Chat-level filtering takes precedence over individual-level
+- **Directional filtering**: Separate rules for inbound vs outbound messages
+
+### Date Range Filtering
+
+Filter messages by date range (applies to manual queries only, not monitoring):
+
+```python
+from imessage_monitor.config import DateRange
+from datetime import datetime
+
+# Custom date range
+date_range = DateRange(
+    start_date=datetime(2024, 1, 1),
+    end_date=datetime(2024, 12, 31)
+)
+
+# Quick helpers
+date_range = DateRange.from_days_back(7)    # Last 7 days
+date_range = DateRange.from_hours_back(24)  # Last 24 hours
+
+config = Config.default()
+config.date_range = date_range
+monitor = iMessageMonitor()
+recent_messages = monitor.get_recent_messages(limit=100)
+```
+
+### Example TOML Configuration
+
+```toml
+[apple]
+chat_db_path = "~/Library/Messages/chat.db"
+attachments_path = "~/Library/Messages/Attachments"
+permissions_check = true
+
+[monitoring]
+poll_interval_seconds = 20 # Used as backup if enable_real_time=true
+max_batch_size = 1000
+enable_real_time = true
+
+[contacts]
+outbound_behavior = "whitelist" # "whitelist" | "blacklist" | "none"
+outbound_ids = ["+1234567890", "friend@example.com"]
+inbound_behavior = "blacklist" # "whitelist" | "blacklist" | "none"  
+inbound_ids = ["spam@example.com", "+9876543210"]
+
+[date_range] # Ignored when monitoring
+start_date = "2024-01-01T00:00:00"
+end_date = "2024-12-31T23:59:59"
+
+[outbound]
+method = "applescript"
+rate_limit_per_minute = 30
+```
+
 ## Permissions
 
 ### Required: Full Disk Access

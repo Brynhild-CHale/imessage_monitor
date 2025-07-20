@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
 from imessage_monitor.config import (
-    Config, ConfigManager, DatabaseConfig, AppleConfig, MonitoringConfig,
+    Config, ConfigManager, AppleConfig, MonitoringConfig,
     ContactFilter, DateRange, OutboundConfig,
     init_config, get_config, load_config_from_file, create_default_config
 )
@@ -58,32 +58,6 @@ class TestDateRange:
         assert dr.end_date is None
 
 
-class TestDatabaseConfig:
-    """Test DatabaseConfig functionality."""
-
-    def test_database_config_creation(self):
-        """Test DatabaseConfig creation."""
-        config = DatabaseConfig(
-            url="postgresql://user:pass@localhost/db",
-            pool_size=5,
-            max_overflow=10,
-            pool_timeout=15
-        )
-        
-        assert config.url == "postgresql://user:pass@localhost/db"
-        assert config.pool_size == 5
-        assert config.max_overflow == 10
-        assert config.pool_timeout == 15
-
-    def test_database_config_defaults(self):
-        """Test DatabaseConfig with defaults."""
-        config = DatabaseConfig(url="postgresql://localhost/db")
-        
-        assert config.url == "postgresql://localhost/db"
-        assert config.pool_size == 10
-        assert config.max_overflow == 20
-        assert config.pool_timeout == 30
-
 
 class TestAppleConfig:
     """Test AppleConfig functionality."""
@@ -117,13 +91,11 @@ class TestMonitoringConfig:
         """Test MonitoringConfig creation."""
         config = MonitoringConfig(
             poll_interval_seconds=5,
-            startup_lookback_hours=12,
             max_batch_size=50,
             enable_real_time=False
         )
         
         assert config.poll_interval_seconds == 5
-        assert config.startup_lookback_hours == 12
         assert config.max_batch_size == 50
         assert config.enable_real_time is False
 
@@ -132,7 +104,6 @@ class TestMonitoringConfig:
         config = MonitoringConfig()
         
         assert config.poll_interval_seconds == 3
-        assert config.startup_lookback_hours == 24
         assert config.max_batch_size == 100
         assert config.enable_real_time is True
 
@@ -143,21 +114,25 @@ class TestContactFilter:
     def test_contact_filter_creation(self):
         """Test ContactFilter creation."""
         config = ContactFilter(
-            phone_numbers=["+15551234567", "+15559876543"],
-            include_unknown=False,
-            group_chats=False
+            outbound_behavior="whitelist",
+            outbound_ids=["+15551234567", "+15559876543"],
+            inbound_behavior="blacklist",
+            inbound_ids=["+15551111111"]
         )
         
-        assert config.phone_numbers == ["+15551234567", "+15559876543"]
-        assert config.include_unknown is False
-        assert config.group_chats is False
+        assert config.outbound_behavior == "whitelist"
+        assert config.outbound_ids == ["+15551234567", "+15559876543"]
+        assert config.inbound_behavior == "blacklist"
+        assert config.inbound_ids == ["+15551111111"]
 
     def test_contact_filter_defaults(self):
         """Test ContactFilter with defaults."""
-        config = ContactFilter(phone_numbers=["+15551234567"])
+        config = ContactFilter()
         
-        assert config.include_unknown is True
-        assert config.group_chats is True
+        assert config.outbound_behavior == "none"
+        assert config.inbound_behavior == "none"
+        assert config.outbound_ids == []
+        assert config.inbound_ids == []
 
 
 class TestOutboundConfig:
@@ -168,14 +143,10 @@ class TestOutboundConfig:
         config = OutboundConfig(
             method="shortcuts",
             rate_limit_per_minute=60,
-            enable_auto_reply=True,
-            auto_reply_triggers=["help", "status"]
         )
         
         assert config.method == "shortcuts"
         assert config.rate_limit_per_minute == 60
-        assert config.enable_auto_reply is True
-        assert config.auto_reply_triggers == ["help", "status"]
 
     def test_outbound_config_defaults(self):
         """Test OutboundConfig with defaults."""
@@ -183,8 +154,6 @@ class TestOutboundConfig:
         
         assert config.method == "applescript"
         assert config.rate_limit_per_minute == 30
-        assert config.enable_auto_reply is False
-        assert config.auto_reply_triggers is None
 
 
 class TestConfig:
@@ -194,7 +163,6 @@ class TestConfig:
         """Test Config.default()."""
         config = Config.default()
         
-        assert isinstance(config.database, DatabaseConfig)
         assert isinstance(config.apple, AppleConfig)
         assert isinstance(config.monitoring, MonitoringConfig)
         assert isinstance(config.contacts, ContactFilter)
@@ -209,10 +177,6 @@ class TestConfig:
     def test_config_from_file_valid_toml(self):
         """Test Config.from_file with valid TOML."""
         toml_content = """
-[database]
-url = "postgresql://user:pass@localhost/test_db"
-pool_size = 5
-
 [apple]
 chat_db_path = "/test/path/chat.db"
 attachments_path = "/test/path/attachments"
@@ -220,14 +184,14 @@ permissions_check = false
 
 [monitoring]
 poll_interval_seconds = 5
-startup_lookback_hours = 12
 max_batch_size = 50
 enable_real_time = false
 
 [contacts]
-phone_numbers = ["+15551234567", "+15559876543"]
-include_unknown = false
-group_chats = false
+outbound_behavior = "whitelist"
+outbound_ids = ["+15551234567", "+15559876543"]
+inbound_behavior = "blacklist"
+inbound_ids = ["+15551111111"]
 
 [date_range]
 start_date = "2023-01-01T00:00:00"
@@ -236,8 +200,6 @@ end_date = "2023-01-31T23:59:59"
 [outbound]
 method = "shortcuts"
 rate_limit_per_minute = 60
-enable_auto_reply = true
-auto_reply_triggers = ["help", "status"]
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -247,12 +209,13 @@ auto_reply_triggers = ["help", "status"]
             try:
                 config = Config.from_file(Path(f.name))
                 
-                assert config.database.url == "postgresql://user:pass@localhost/test_db"
-                assert config.database.pool_size == 5
                 assert config.apple.chat_db_path == "/test/path/chat.db"
                 assert config.apple.permissions_check is False
                 assert config.monitoring.poll_interval_seconds == 5
-                assert config.contacts.phone_numbers == ["+15551234567", "+15559876543"]
+                assert config.contacts.outbound_behavior == "whitelist"
+                assert config.contacts.outbound_ids == ["+15551234567", "+15559876543"]
+                assert config.contacts.inbound_behavior == "blacklist"
+                assert config.contacts.inbound_ids == ["+15551111111"]
                 assert config.outbound.method == "shortcuts"
                 
                 # Check date parsing
@@ -265,23 +228,20 @@ auto_reply_triggers = ["help", "status"]
     def test_config_from_file_missing_dates(self):
         """Test Config.from_file with missing date range."""
         toml_content = """
-[database]
-url = "postgresql://user:pass@localhost/test_db"
-
 [apple]
 chat_db_path = "/test/path/chat.db"
 attachments_path = "/test/path/attachments"
 
 [monitoring]
 poll_interval_seconds = 5
-startup_lookback_hours = 12
 max_batch_size = 50
 enable_real_time = false
 
 [contacts]
-phone_numbers = []
-include_unknown = true
-group_chats = true
+outbound_behavior = "none"
+outbound_ids = []
+inbound_behavior = "none"
+inbound_ids = []
 
 [date_range]
 # No dates specified
@@ -289,8 +249,6 @@ group_chats = true
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -323,13 +281,13 @@ auto_reply_triggers = []
         # Check that we get expected validation keys
         expected_keys = [
             "Poll interval is positive",
-            "Startup lookback is positive", 
             "Max batch size is positive",
             "Outbound method is valid",
             "Rate limit is positive",
-            "Database URL is not empty",
-            "Database pool settings are valid",
-            "Phone numbers list is valid"
+            "Outbound behavior is valid",
+            "Inbound behavior is valid",
+            "Outbound IDs list is valid",
+            "Inbound IDs list is valid"
         ]
         
         for key in expected_keys:
@@ -342,22 +300,24 @@ auto_reply_triggers = []
         
         # Make some settings invalid
         config.monitoring.poll_interval_seconds = 0
-        config.monitoring.startup_lookback_hours = -1
         config.monitoring.max_batch_size = 0
         config.outbound.method = "invalid_method"
         config.outbound.rate_limit_per_minute = -1
-        config.database.url = ""
-        config.database.pool_size = 0
+        config.contacts.outbound_behavior = "invalid_behavior"
+        config.contacts.inbound_behavior = "invalid_behavior"
+        config.contacts.outbound_ids = "not_a_list"
+        config.contacts.inbound_ids = None
         
         results = config.get_validation_results()
         
         assert results["Poll interval is positive"] is False
-        assert results["Startup lookback is positive"] is False
         assert results["Max batch size is positive"] is False
         assert results["Outbound method is valid"] is False
         assert results["Rate limit is positive"] is False
-        assert results["Database URL is not empty"] is False
-        assert results["Database pool settings are valid"] is False
+        assert results["Outbound behavior is valid"] is False
+        assert results["Inbound behavior is valid"] is False
+        assert results["Outbound IDs list is valid"] is False
+        assert results["Inbound IDs list is valid"] is False
 
     def test_config_validate_method(self):
         """Test config.validate() method."""
@@ -444,31 +404,26 @@ class TestConfigManager:
     def test_config_manager_load_config_file_exists(self):
         """Test ConfigManager.load_config with existing file."""
         toml_content = """
-[database]
-url = "postgresql://user:pass@localhost/test_db"
-
 [apple]
 chat_db_path = "/test/path/chat.db"
 attachments_path = "/test/path/attachments"
 
 [monitoring]
 poll_interval_seconds = 5
-startup_lookback_hours = 12
 max_batch_size = 50
 enable_real_time = false
 
 [contacts]
-phone_numbers = []
-include_unknown = true
-group_chats = true
+outbound_behavior = "none"
+outbound_ids = []
+inbound_behavior = "none"
+inbound_ids = []
 
 [date_range]
 
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -479,7 +434,6 @@ auto_reply_triggers = []
                 manager = ConfigManager(Path(f.name))
                 config = manager.load_config()
                 
-                assert config.database.url == "postgresql://user:pass@localhost/test_db"
                 assert config.monitoring.poll_interval_seconds == 5
                 assert manager.config == config
                 
@@ -627,31 +581,26 @@ class TestGlobalConfigFunctions:
     def test_load_config_from_file(self):
         """Test load_config_from_file function."""
         toml_content = """
-[database]
-url = "postgresql://user:pass@localhost/test_db"
-
 [apple]
 chat_db_path = "/test/path/chat.db"
 attachments_path = "/test/path/attachments"
 
 [monitoring]
 poll_interval_seconds = 5
-startup_lookback_hours = 12
 max_batch_size = 50
 enable_real_time = false
 
 [contacts]
-phone_numbers = []
-include_unknown = true
-group_chats = true
+outbound_behavior = "none"
+outbound_ids = []
+inbound_behavior = "none"
+inbound_ids = []
 
 [date_range]
 
 [outbound]
 method = "applescript"
 rate_limit_per_minute = 30
-enable_auto_reply = false
-auto_reply_triggers = []
 """
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
@@ -661,7 +610,6 @@ auto_reply_triggers = []
             try:
                 config = load_config_from_file(Path(f.name))
                 
-                assert config.database.url == "postgresql://user:pass@localhost/test_db"
                 assert config.monitoring.poll_interval_seconds == 5
                 
             finally:

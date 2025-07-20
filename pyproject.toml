@@ -1,6 +1,6 @@
 [project]
 name = "imessage-monitor"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python library for monitoring and extracting iMessage data with real-time capabilities"
 readme = "README.md"
 license = { text = "MIT" }
@@ -15,6 +15,7 @@ dependencies = [
     "ascii-magic>=2.3.0",
     "pillow-heif>=1.0.0",
     "tomli-w>=1.2.0",
+    "watchdog>=6.0.0",
 ]
 keywords = [
     "imessage",

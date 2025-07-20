@@ -1,162 +1,137 @@
-"""Real-time iMessage monitoring example."""
+"""Streamlined iMessage Monitor examples."""
+
 import asyncio
-import signal
-import sys
 from imessage_monitor import iMessageMonitor
-from imessage_monitor.display import pretty_print_bubble, pretty_print_reaction, pretty_print_sticker
+from imessage_monitor.config import Config, ContactFilter, DateRange
+from imessage_monitor.display import pretty_print_bubble
 
 
-class RealTimeMonitor:
-    """Real-time iMessage monitor with graceful shutdown."""
-    
-    def __init__(self, enable_ascii_art: bool = False):
-        self.monitor = iMessageMonitor()
-        self.enable_ascii_art = enable_ascii_art
-        self.running = False
-        self.message_count = 0
-        
-    def handle_new_message(self, message):
-        """Handle incoming messages with pretty printing."""
-        self.message_count += 1
-        
-        print(f"\n{'='*80}")
-        print(f"📱 NEW MESSAGE #{self.message_count}")
-        print(f"{'='*80}")
-        
-        # Determine message type and use appropriate pretty print
-        associated_type = message.get('associated_message_type', 0)
-        balloon_bundle_id = message.get('balloon_bundle_id', '')
-        attachments = message.get('parsed_attachments', [])
-        
-        # Check if it's a sticker
-        is_sticker = any(attachment.get('is_sticker', False) for attachment in attachments)
-        
-        if associated_type in range(2000, 4000):  # Reaction
-            print("🔄 REACTION:")
-            print(pretty_print_reaction(message))
-        elif is_sticker:
-            print("🎭 STICKER:")
-            print(pretty_print_sticker(message, show_ascii_art=self.enable_ascii_art))
-        else:
-            print("💬 MESSAGE:")
-            print(pretty_print_bubble(message, show_ascii_art=self.enable_ascii_art))
-        
-        # Show additional info
-        sender = "You" if message.get('is_from_me') else message.get('handle_id_str', 'Unknown')
-        service = message.get('service', 'Unknown')
-        print(f"\n📊 From: {sender} | Service: {service}")
-        
-        if attachments:
-            print(f"📎 Attachments: {len(attachments)}")
-            for i, attachment in enumerate(attachments[:3]):  # Show first 3
-                filename = attachment.get('filename', 'Unknown')
-                size = attachment.get('size', 0)
-                if size:
-                    size_mb = size / (1024 * 1024)
-                    print(f"   {i+1}. {filename} ({size_mb:.1f}MB)")
-                else:
-                    print(f"   {i+1}. {filename}")
-    
-    def setup_signal_handlers(self):
-        """Setup graceful shutdown on Ctrl+C."""
-        def signal_handler(signum, frame):
-            print(f"\n\n⚠️  Received signal {signum}. Shutting down gracefully...")
-            self.running = False
-        
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-    
-    async def start_monitoring(self):
-        """Start real-time monitoring."""
-        self.setup_signal_handlers()
-        self.running = True
-        
-        print("🚀 Starting iMessage Real-Time Monitor")
-        print("=" * 60)
-        print(f"ASCII Art: {'Enabled' if self.enable_ascii_art else 'Disabled'}")
-        print("=" * 60)
-        
-        try:
-            # Start monitoring without showing initial messages
-            print("📱 Initializing monitor...")
-            initial_messages = self.monitor.start(message_callback=self.handle_new_message)
-            print("✅ Monitor initialized")
-            
-            print("\n🎯 MONITORING ACTIVE - Waiting for new messages...")
-            print("📞 Send yourself a message to test!")
-            print("🛑 Press Ctrl+C to stop monitoring")
-            print("=" * 60)
-            
-            # Keep the monitor running
-            while self.running and self.monitor.is_running():
-                await asyncio.sleep(0.5)  # Check every 0.5 seconds
-                
-        except KeyboardInterrupt:
-            print("\n⚠️  Keyboard interrupt received")
-        except Exception as e:
-            print(f"\n❌ Error during monitoring: {e}")
-        finally:
-            await self.cleanup()
-    
-    async def cleanup(self):
-        """Clean shutdown of the monitor."""
-        print("\n🛑 Stopping monitor...")
-        
-        if self.monitor.is_running():
-            self.monitor.stop()
-            
-        print(f"📊 Session Summary:")
-        print(f"   • Messages processed: {self.message_count}")
-        print(f"   • Monitor status: {'Stopped' if not self.monitor.is_running() else 'Running'}")
-        print("✅ Monitor stopped successfully")
+def simple_message_callback(message):
+    """Simple message handler."""
+    sender = "You" if message.get('is_from_me') else message.get('handle_id_str', 'Unknown')
+    content = message.get('message_text') or '[Media/Reaction]'
+    print(f"📱 {sender}: {content}")
 
 
-def show_help():
-    """Show usage instructions."""
-    print("iMessage Real-Time Monitor")
-    print("=" * 40)
-    print("Usage:")
-    print("  python example_usage.py [--ascii-art]")
-    print("")
-    print("Options:")
-    print("  --ascii-art    Enable ASCII art for images (default: disabled)")
-    print("  --help         Show this help message")
-    print("")
-    print("Controls:")
-    print("  Ctrl+C         Stop monitoring")
-    print("")
-    print("Features:")
-    print("  • Real-time message monitoring")
-    print("  • Pretty-printed chat bubbles") 
-    print("  • Reaction and sticker support")
-    print("  • Attachment information")
-    print("  • Graceful shutdown")
+async def example_real_time_monitoring():
+    """Example: Basic real-time monitoring."""
+    print("🚀 Real-time monitoring example")
+    
+    monitor = iMessageMonitor()
+    monitor.start(message_callback=simple_message_callback)
+    
+    print("Monitoring for 30 seconds...")
+    await asyncio.sleep(30)
+    monitor.stop()
+    print("✅ Stopped\n")
+
+
+def example_recent_messages():
+    """Example: Get recent messages with time filters."""
+    print("📋 Recent messages examples")
+    
+    # Example 1: Last hour of messages
+    config = Config.default()
+    config.date_range = DateRange.from_hours_back(1)
+    
+    monitor = iMessageMonitor()
+    monitor.config = config
+    messages = monitor.get_recent_messages(limit=10)
+    
+    print(f"Last hour: {len(messages)} messages")
+    for msg in messages[:3]:
+        sender = "You" if msg.get('is_from_me') else msg.get('handle_id_str', 'Unknown')
+        content = msg.get('message_text') or '[Media]'
+        print(f"  • {sender}: {content[:50]}...")
+    
+    # Example 2: Specific date range (3-4 hours ago)
+    from datetime import datetime, timedelta
+    end_time = datetime.now() - timedelta(hours=3)
+    start_time = end_time - timedelta(hours=1)
+    config.date_range = DateRange(start_date=start_time, end_date=end_time)
+    monitor.config = config
+    messages = monitor.get_recent_messages(limit=10)
+    
+    print(f"3-4 hours ago: {len(messages)} messages")
+    for msg in messages[:3]:
+        sender = "You" if msg.get('is_from_me') else msg.get('handle_id_str', 'Unknown')
+        content = msg.get('message_text') or '[Media]'
+        print(f"  • {sender}: {content[:50]}...")
+    print()
+
+
+def example_contact_filtering():
+    """Example: Contact filtering."""
+    print("👥 Contact filtering examples")
+    
+    # Example: Whitelist specific contact
+    contact_filter = ContactFilter(
+        inbound_behavior="whitelist",
+        inbound_ids=["+1234567890"]
+    )
+    
+    config = Config.default()
+    config.contacts = contact_filter
+    
+    monitor = iMessageMonitor()
+    monitor.config = config
+    messages = monitor.get_recent_messages(limit=10)
+    
+    print(f"Filtered messages: {len(messages)}")
+    for msg in messages[:3]:
+        sender = msg.get('handle_id_str', 'Unknown')
+        content = msg.get('message_text') or '[Media]'
+        print(f"  • {sender}: {content[:50]}...")
+    print()
+
+
+def example_pretty_printing():
+    """Example: Pretty message display."""
+    print("🎨 Pretty printing example")
+    
+    monitor = iMessageMonitor()
+    messages = monitor.get_recent_messages(limit=5)
+    
+    if messages:
+        print("Sample message bubble:")
+        print(pretty_print_bubble(messages[0]))
+    print()
 
 
 async def main():
-    """Main entry point for real-time monitoring."""
+    """Run all examples."""
+    print("iMessage Monitor - Examples\n")
     
-    # Parse command line arguments
-    enable_ascii_art = '--ascii-art' in sys.argv
-    show_help_flag = '--help' in sys.argv or '-h' in sys.argv
+    # Quick examples
+    example_recent_messages()
+    example_contact_filtering()
+    example_pretty_printing()
     
-    if show_help_flag:
-        show_help()
-        return
+    # Real-time example (uncomment to run)
+    # await example_real_time_monitoring()
     
-    # Create and start the monitor
-    monitor = RealTimeMonitor(enable_ascii_art=enable_ascii_art)
-    await monitor.start_monitoring()
+    # Interactive option
+    print("🎯 Try it out!")
+    choice = input("Enter phone number to send welcome message (or press Enter to exit): ").strip()
+    
+    if choice:
+        try:
+            from imessage_monitor.outbound import AppleScriptSender
+            sender = AppleScriptSender()
+            message = "Welcome to imessage-monitor!"
+            
+            print(f"Sending welcome message to {choice}...")
+            success = await sender.send_text_message(choice, message)
+            
+            if success:
+                print("✅ Message sent successfully!")
+            else:
+                print("❌ Failed to send message")
+        except Exception as e:
+            print(f"❌ Error sending message: {e}")
+    
+    print("👋 Goodbye!")
 
 
 if __name__ == "__main__":
-    print("iMessage Monitor - Real-Time Monitoring")
-    print("=" * 60)
-    
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n👋 Goodbye!")
-    except Exception as e:
-        print(f"\n❌ Fatal error: {e}")
-        sys.exit(1)
+    asyncio.run(main())

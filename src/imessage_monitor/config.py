@@ -7,16 +7,6 @@ import tomllib
 
 
 @dataclass
-class DatabaseConfig:
-    """Database configuration settings."""
-    url: str
-    pool_size: int = 10
-    max_overflow: int = 20
-    pool_timeout: int = 30
-    enable_storage: bool = False
-
-
-@dataclass
 class AppleConfig:
     """Apple iMessage database configuration."""
     chat_db_path: str
@@ -28,7 +18,6 @@ class AppleConfig:
 class MonitoringConfig:
     """Message monitoring configuration."""
     poll_interval_seconds: int = 3
-    startup_lookback_hours: int = 24
     max_batch_size: int = 100
     enable_real_time: bool = True
 
@@ -36,9 +25,17 @@ class MonitoringConfig:
 @dataclass
 class ContactFilter:
     """Contact filtering configuration."""
-    phone_numbers: List[str]
-    include_unknown: bool = True
-    group_chats: bool = True
+    outbound_behavior: str = "none"  # "whitelist" | "blacklist" | "none"
+    outbound_ids: List[str] = None
+    inbound_behavior: str = "none"  # "whitelist" | "blacklist" | "none"
+    inbound_ids: List[str] = None
+    
+    def __post_init__(self):
+        """Initialize empty lists if None."""
+        if self.outbound_ids is None:
+            self.outbound_ids = []
+        if self.inbound_ids is None:
+            self.inbound_ids = []
 
 
 @dataclass
@@ -67,14 +64,11 @@ class OutboundConfig:
     """Outbound messaging configuration."""
     method: str = "applescript"  # "applescript", "shortcuts"
     rate_limit_per_minute: int = 30
-    enable_auto_reply: bool = False
-    auto_reply_triggers: Optional[List[str]] = None
 
 
 @dataclass
 class Config:
     """Main configuration class."""
-    database: DatabaseConfig
     apple: AppleConfig
     monitoring: MonitoringConfig
     contacts: ContactFilter
@@ -97,7 +91,6 @@ class Config:
             end_date = datetime.fromisoformat(date_range_data["end_date"])
         
         return cls(
-            database=DatabaseConfig(**data["database"]),
             apple=AppleConfig(**data["apple"]),
             monitoring=MonitoringConfig(**data["monitoring"]),
             contacts=ContactFilter(**data["contacts"]),
@@ -109,17 +102,14 @@ class Config:
     def default(cls) -> 'Config':
         """Create default configuration."""
         return cls(
-            database=DatabaseConfig(
-                url="postgresql://user:pass@localhost/imessage_db"
-            ),
             apple=AppleConfig(
                 chat_db_path=str(Path.home() / "Library" / "Messages" / "chat.db"),
                 attachments_path=str(Path.home() / "Library" / "Messages" / "Attachments")
             ),
             monitoring=MonitoringConfig(),
-            contacts=ContactFilter(phone_numbers=[]),
+            contacts=ContactFilter(),
             date_range=DateRange(),
-            outbound=OutboundConfig(auto_reply_triggers=[])
+            outbound=OutboundConfig()
         )
     
     def validate(self) -> bool:
@@ -146,23 +136,17 @@ class Config:
         
         # Monitoring configuration validation
         results["Poll interval is positive"] = self.monitoring.poll_interval_seconds > 0
-        results["Startup lookback is positive"] = self.monitoring.startup_lookback_hours >= 0
         results["Max batch size is positive"] = self.monitoring.max_batch_size > 0
         
         # Outbound configuration validation
         results["Outbound method is valid"] = self.outbound.method in ["applescript", "shortcuts"]
         results["Rate limit is positive"] = self.outbound.rate_limit_per_minute > 0
         
-        # Database URL validation (basic)
-        results["Database URL is not empty"] = bool(self.database.url.strip())
-        results["Database pool settings are valid"] = (
-            self.database.pool_size > 0 and 
-            self.database.max_overflow >= 0 and 
-            self.database.pool_timeout > 0
-        )
-        
         # Contact filter validation
-        results["Phone numbers list is valid"] = isinstance(self.contacts.phone_numbers, list)
+        results["Outbound behavior is valid"] = self.contacts.outbound_behavior in ["none", "whitelist", "blacklist"]
+        results["Inbound behavior is valid"] = self.contacts.inbound_behavior in ["none", "whitelist", "blacklist"]
+        results["Outbound IDs list is valid"] = isinstance(self.contacts.outbound_ids, list)
+        results["Inbound IDs list is valid"] = isinstance(self.contacts.inbound_ids, list)
         
         return results
     

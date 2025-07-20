@@ -912,21 +912,6 @@ class iMessageManager:
             self.logger.error(f"Failed to save attachment: {e}")
             return None
     
-    def auto_reply(self, trigger_word, reply_message):
-        """Auto-reply to messages containing trigger word"""
-        try:
-            recent_messages = self.get_recent_messages(5)
-            
-            for msg in recent_messages:
-                if (trigger_word.lower() in msg['text'].lower() and 
-                    msg['sender'] and msg['sender'] != 'me'):
-                    
-                    success = self.send_message(msg['sender'], reply_message)
-                    if success:
-                        self.logger.info(f"Auto-replied to {msg['sender']}")
-                    
-        except Exception as e:
-            self.logger.error(f"Auto-reply error: {e}")
     
     def auto_save_attachments(self, destination_dir, contact_filter=None):
         """Automatically save new attachments to a directory"""
@@ -976,8 +961,6 @@ for att in attachments:
 saved_count = manager.auto_save_attachments("~/Desktop/Saved_Attachments")
 print(f"Saved {saved_count} attachments")
 
-# Auto-reply functionality
-manager.auto_reply("meeting", "Thanks for the meeting reminder!")
 ```
 
 ## Security and permissions setup
