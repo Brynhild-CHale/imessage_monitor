@@ -13,12 +13,17 @@ def simple_message_callback(message):
     print(f"📱 {sender}: {content}")
 
 
+def pretty_message_callback(message):
+    """Pretty message handler using chat bubbles."""
+    print(pretty_print_bubble(message))
+
+
 async def example_real_time_monitoring():
     """Example: Basic real-time monitoring."""
     print("🚀 Real-time monitoring example")
     
     monitor = iMessageMonitor()
-    monitor.start(message_callback=simple_message_callback)
+    monitor.start(message_callback=pretty_message_callback)
     
     print("Monitoring for 30 seconds...")
     await asyncio.sleep(30)
@@ -133,7 +138,7 @@ async def main():
     example_batched_iterator()
     
     # Real-time example (uncomment to run)
-    # await example_real_time_monitoring()
+    await example_real_time_monitoring()
     
     # Interactive option
     print("🎯 Try it out!")
