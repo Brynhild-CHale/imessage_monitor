@@ -56,7 +56,8 @@ test = [
 ]
 
 [project.urls]
-
+source = "https://github.com/Brynhild-CHale/imessage_monitor"
+documentation = "https://github.com/Brynhild-CHale/imessage_monitor/blob/main/README.md"
 
 [build-system]
 requires = ["hatchling"]

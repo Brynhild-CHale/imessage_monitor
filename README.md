@@ -4,13 +4,13 @@ A Python library for monitoring and extracting iMessage data with real-time capa
 
 ## Features
 
-- = **Real-time monitoring** of incoming iMessages
-- =� **Pretty-printed chat bubbles** with proper left/right alignment
-- <� **Sticker and reaction support** with emoji display
-- =� **ASCII art generation** for image attachments (optional)
-- =� **Attachment handling** including HEIC conversion
-- =� **Outbound messaging** via AppleScript or Shortcuts
-- =� **Safe database access** with read-only mode
+- **Real-time monitoring** of incoming iMessages
+- **Pretty-printed chat bubbles** with proper left/right alignment
+- **Sticker and reaction support** with emoji display
+- **ASCII art generation** for image attachments (optional)
+- **Attachment handling** including HEIC conversion
+- **Outbound messaging** via AppleScript or Shortcuts
+- **Safe database access** with read-only mode
 
 ## Requirements
 
@@ -96,7 +96,7 @@ print(pretty_print_bubble(message, show_ascii_art=True))
 ```python
 from imessage_monitor.display import pretty_print_reaction
 
-print(pretty_print_reaction(message))  # Shows d, =M, =, etc.
+print(pretty_print_reaction(message))  # Shows ❤️, 👍, 👎, etc.
 ```
 
 ### Stickers
