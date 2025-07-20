@@ -4,7 +4,8 @@ import json
 import base64
 import copy
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
+from pathlib import Path
 
 
 # Date/Time Conversion
@@ -23,6 +24,88 @@ def datetime_to_apple_timestamp(dt: datetime) -> int:
     apple_epoch = datetime(2001, 1, 1)
     diff = dt - apple_epoch
     return int(diff.total_seconds() * 1_000_000_000)  # Convert to nanoseconds
+
+
+def format_apple_timestamp_for_display(timestamp: int) -> str:
+    """Convert Apple timestamp to formatted time string for display.
+    
+    Args:
+        timestamp: Apple timestamp (nanoseconds since 2001-01-01)
+        
+    Returns:
+        Formatted time string (HH:MM) or "??:??" if invalid
+    """
+    if isinstance(timestamp, (int, float)) and timestamp > 0:
+        try:
+            dt = apple_timestamp_to_datetime(timestamp)
+            return dt.strftime("%H:%M")
+        except (ValueError, OverflowError):
+            return "??:??"
+    else:
+        return "??:??"
+
+
+# File Utilities
+def is_supported_file_type(file_path: Union[str, Path], supported_extensions: set[str]) -> bool:
+    """Check if file format is in supported extensions set.
+    
+    Args:
+        file_path: File path or filename (str or Path object)
+        supported_extensions: Set of supported file extensions (e.g. {'.jpg', '.png'})
+    
+    Returns:
+        True if file extension is in supported set
+    """
+    file_ext = Path(file_path).suffix.lower()
+    return file_ext in supported_extensions
+
+
+def resolve_attachment_file_path(filename: str) -> Path:
+    """Resolve attachment filename to actual file path.
+    
+    Args:
+        filename: Attachment filename (may be full path, relative path, or just filename)
+        
+    Returns:
+        Path object to the actual file
+        
+    Raises:
+        FileNotFoundError: If file cannot be found in any expected location
+    """
+    if not filename:
+        raise FileNotFoundError("No filename provided")
+    
+    # Handle absolute paths
+    if filename.startswith('/'):
+        file_path = Path(filename)
+        if file_path.exists():
+            return file_path
+        raise FileNotFoundError(f"Absolute path does not exist: {filename}")
+    
+    # Handle home directory paths
+    if filename.startswith('~'):
+        file_path = Path(filename).expanduser()
+        if file_path.exists():
+            return file_path
+        raise FileNotFoundError(f"Home directory path does not exist: {filename}")
+    
+    # Try relative paths in standard macOS attachment locations
+    attachments_base = Path.home() / "Library" / "Messages" / "Attachments"
+    possible_paths = [
+        attachments_base / filename,
+        Path(filename),  # Current directory
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            return path
+    
+    # If not found anywhere, raise with helpful message
+    searched_locations = [str(p) for p in possible_paths]
+    raise FileNotFoundError(
+        f"Attachment file '{filename}' not found in any of these locations:\n" + 
+        "\n".join(f"  - {loc}" for loc in searched_locations)
+    )
 
 
 def prepare_data_for_serialization(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

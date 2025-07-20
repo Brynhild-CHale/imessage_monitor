@@ -1,7 +1,28 @@
 """Display and formatting functions for iMessage Monitor."""
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 from .config import Config
+from .utils import format_apple_timestamp_for_display, is_supported_file_type, resolve_attachment_file_path
+
+# Constants
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.heic', '.heif'}
+
+# iMessage reaction type mappings
+REACTION_EMOJIS = {
+    2000: "❤️",    # Love
+    2001: "👍",    # Like  
+    2002: "👎",    # Dislike
+    2003: "😂",    # Laugh
+    2004: "‼️",    # Emphasis
+    2005: "❓",    # Question
+    3000: "💔",    # Remove Love
+    3001: "👎",    # Remove Like
+    3002: "👍",    # Remove Dislike
+    3003: "😐",    # Remove Laugh
+    3004: "📍",    # Remove Emphasis
+    3005: "❔",    # Remove Question
+}
 
 # TODO: Implement live message logging functionality for CLI
 # - format_message_for_log() for terminal display of incoming/outgoing messages
@@ -9,18 +30,133 @@ from .config import Config
 # - format_system_event() and format_error_message() for daemon events
 
 
-# Image Processing Helper
-def get_optimal_ascii_width() -> int:
-    """Get optimal ASCII art width based on terminal size."""
+# Terminal Width Helpers
+def get_terminal_width() -> int:
+    """Get current terminal width."""
     import shutil
     try:
-        terminal_width = shutil.get_terminal_size().columns
-        return max(30, terminal_width - 10)
+        return shutil.get_terminal_size().columns
     except:
-        return 30  # Fallback if terminal size detection fails
+        return 80  # Fallback if terminal size detection fails
+
+
+def get_optimal_ascii_width() -> int:
+    """Get optimal ASCII art width (80% of terminal)."""
+    terminal_width = get_terminal_width()
+    return max(30, int(terminal_width * 0.8))
+
+
+def get_optimal_text_width() -> int:
+    """Get optimal text bubble width (60% of terminal)."""
+    terminal_width = get_terminal_width()
+    return max(40, int(terminal_width * 0.6))
+
+
+def format_attachment_for_bubble(
+    image_attachments: List[Dict[str, Any]], 
+    max_content_width: int,
+    left_padding: str,
+    show_ascii_art: bool = False
+) -> List[str]:
+    """Format image attachments for bubble display.
+    
+    Args:
+        image_attachments: List of image attachment dictionaries
+        max_content_width: Maximum width for content
+        left_padding: Left padding string for alignment
+        show_ascii_art: Whether to show ASCII art for images
+        
+    Returns:
+        List of formatted lines for the bubble
+    """
+    if not image_attachments:
+        return []
+    
+    lines = []
+    lines.append(left_padding + '│' + ' ' * (max_content_width + 2) + '│')
+    
+    # Show first image only
+    for attachment in image_attachments[:1]:
+        ascii_art = get_ascii_art_for_attachment(attachment, enable_ascii=show_ascii_art)
+        art_lines = ascii_art.split('\n')
+        
+        for art_line in art_lines:
+            # Truncate if line is too long
+            if len(art_line) > max_content_width:
+                art_line = art_line[:max_content_width]
+            
+            # Calculate padding for this line
+            art_padding = max_content_width - len(art_line)
+            lines.append(left_padding + '│ ' + art_line + ' ' * art_padding + ' │')
+    
+    return lines
+
+
+def convert_heic_to_temp_png(file_path: Path) -> str:
+    """Convert HEIC/HEIF file to temporary PNG.
+    
+    Args:
+        file_path: Path to HEIC/HEIF file
+        
+    Returns:
+        Path to temporary PNG file
+        
+    Raises:
+        ImportError: If pillow-heif not available
+        Exception: If conversion fails
+    """
+    try:
+        import pillow_heif
+        from PIL import Image
+        import tempfile
+        
+        # Register HEIF opener with Pillow
+        pillow_heif.register_heif_opener()
+        
+        # Open HEIC file and convert to RGB
+        with Image.open(str(file_path)) as img:
+            rgb_img = img.convert('RGB')
+            
+            # Create temporary PNG file
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+                rgb_img.save(temp_file.name, 'PNG')
+                return temp_file.name
+                
+    except ImportError:
+        raise ImportError("pillow-heif not available for HEIC conversion - install with: uv add pillow-heif")
+    except Exception as e:
+        raise Exception(f"HEIC conversion error: {str(e)}")
+
+
+def generate_ascii_art(file_path: Path, columns: int) -> str:
+    """Generate ASCII art from image file.
+    
+    Args:
+        file_path: Path to image file
+        columns: Width in characters for ASCII art
+        
+    Returns:
+        Empty string (ASCII art is printed to terminal)
+        
+    Raises:
+        ImportError: If ascii_magic not available
+        Exception: If ASCII generation fails
+    """
+    try:
+        from ascii_magic import AsciiArt
+        
+        my_art = AsciiArt.from_image(str(file_path))
+        my_art.to_terminal(columns=columns)
+        return ""
+        
+    except ImportError:
+        raise ImportError("ascii_magic not available - install with: uv add ascii-magic")
+    except Exception as e:
+        raise Exception(f"Error generating ASCII art: {str(e)}")
+
 
 def get_ascii_art_for_attachment(attachment: Dict[str, Any], columns: int = None, enable_ascii: bool = False) -> str:
-    """Convert image attachment to ASCII art.
+    """Convert image attachment to ASCII art (orchestrator function).
     
     Args:
         attachment: Attachment dictionary with filename and file path
@@ -30,111 +166,71 @@ def get_ascii_art_for_attachment(attachment: Dict[str, Any], columns: int = None
     Returns:
         ASCII art string, file info, or error message
     """
+    filename = attachment.get('filename', '')
+    if not filename:
+        return "[No filename available]"
+    
+    # If ASCII art is disabled, return simple file info
+    if not enable_ascii:
+        file_ext = Path(filename).suffix.upper()
+        return f"[📷 {file_ext} Image: {Path(filename).name}]"
+    
+    # Use optimal width if not specified
+    if columns is None:
+        columns = get_optimal_ascii_width()
+    
+    # Check if it's a supported image format
+    if not is_supported_file_type(filename, IMAGE_EXTENSIONS):
+        return f"[Non-image file: {filename}]"
+    
     try:
-        from ascii_magic import AsciiArt
-        from pathlib import Path
+        # Resolve file path
+        file_path = resolve_attachment_file_path(filename)
         
-        filename = attachment.get('filename', '')
-        if not filename:
-            return "[No filename available]"
-        
-        # If ASCII art is disabled, return simple file info
-        if not enable_ascii:
-            file_ext = Path(filename).suffix.upper()
-            return f"[📷 {file_ext} Image: {Path(filename).name}]"
-        
-        # Use optimal width if not specified
-        if columns is None:
-            columns = get_optimal_ascii_width()
-        
-        # Common image extensions (including HEIC)
-        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.heic', '.heif'}
+        # Handle HEIC/HEIF files with conversion
         file_ext = Path(filename).suffix.lower()
+        temp_file_to_cleanup = None
         
-        if file_ext not in image_extensions:
-            return f"[Non-image file: {filename}]"
-        
-        # Try to find the actual file path
-        # The filename might be a full path (starting with / or ~) or relative path
-        if filename.startswith('/'):
-            file_path = Path(filename)
-        elif filename.startswith('~'):
-            # Expand the tilde to the full home directory path
-            file_path = Path(filename).expanduser()
-        else:
-            # Try as relative to attachments directory or current dir
-            attachments_base = Path.home() / "Library" / "Messages" / "Attachments"
-            possible_paths = [
-                attachments_base / filename,
-                Path(filename),
-            ]
-            
-            file_path = None
-            for path in possible_paths:
-                if path.exists():
-                    file_path = path
-                    break
-        
-        if not file_path or not file_path.exists():
-            return f"[Image file not found: {filename}]"
-        
-        # Handle HEIC files with conversion to PNG
         if file_ext in {'.heic', '.heif'}:
             try:
-                import pillow_heif
-                from PIL import Image
-                import tempfile
-                
-                # Register HEIF opener with Pillow
-                pillow_heif.register_heif_opener()
-                
-                # Open HEIC file and convert to RGB
-                with Image.open(str(file_path)) as img:
-                    rgb_img = img.convert('RGB')
-                    
-                    # Create temporary PNG file
-                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-                        rgb_img.save(temp_file.name, 'PNG')
-                        temp_path = temp_file.name
-                
-                # Generate ASCII art from converted PNG
-                my_art = AsciiArt.from_image(temp_path)
-                my_art.to_terminal(columns=columns)
-                
-                # Clean up temporary file
-                Path(temp_path).unlink(missing_ok=True)
-                
-                return ""
-                
-            except ImportError:
-                return "[pillow-heif not available for HEIC conversion - install with: uv add pillow-heif]"
-            except Exception as heic_error:
-                return f"[HEIC conversion error: {str(heic_error)}]"
-        else:
-            # Generate ASCII art for standard formats
-            my_art = AsciiArt.from_image(str(file_path))
-            my_art.to_terminal(columns=columns)
-            
-            return ""
+                temp_png_path = convert_heic_to_temp_png(file_path)
+                temp_file_to_cleanup = temp_png_path
+                file_path = Path(temp_png_path)
+            except (ImportError, Exception) as e:
+                return f"[{str(e)}]"
         
-    except ImportError:
-        return "[ascii_magic not available - install with: uv add ascii-magic]"
+        # Generate ASCII art
+        try:
+            generate_ascii_art(file_path, columns)
+            return ""
+        except (ImportError, Exception) as e:
+            return f"[{str(e)}]"
+        finally:
+            # Clean up temporary file if created
+            if temp_file_to_cleanup:
+                Path(temp_file_to_cleanup).unlink(missing_ok=True)
+                
+    except FileNotFoundError as e:
+        return f"[{str(e)}]"
     except Exception as e:
-        return f"[Error generating ASCII art: {str(e)}]"
+        return f"[Error processing attachment: {str(e)}]"
 
 
 # Pretty Print Types
-def pretty_print_bubble(message: Dict[str, Any], width: int = 60, show_ascii_art: bool = False) -> str:
+def pretty_print_bubble(message: Dict[str, Any], width: int = None, show_ascii_art: bool = False) -> str:
     """Format message as a chat bubble for terminal display.
     
     Args:
         message: Message dictionary from iMessageMonitor
-        width: Maximum width of the bubble
+        width: Maximum width of the bubble (None for auto-detect at 60% of terminal)
         show_ascii_art: Whether to show ASCII art for image attachments (default: False)
         
     Returns:
         Formatted bubble string
     """
+    # Use optimal text width if not specified
+    if width is None:
+        width = get_optimal_text_width()
     # Extract message info
     content = message.get('message_text') or message.get('decoded_attributed_body') or '[No content]'
     is_from_me = message.get('is_from_me', False)
@@ -142,14 +238,7 @@ def pretty_print_bubble(message: Dict[str, Any], width: int = 60, show_ascii_art
     timestamp = message.get('date', 0)
     
     # Format timestamp (convert from Apple timestamp if needed)
-    if isinstance(timestamp, (int, float)) and timestamp > 0:
-        # Apple timestamp: nanoseconds since 2001-01-01
-        apple_epoch = 978307200  # 2001-01-01 in Unix time
-        unix_timestamp = (timestamp / 1_000_000_000) + apple_epoch
-        dt = datetime.fromtimestamp(unix_timestamp)
-        time_str = dt.strftime("%H:%M")
-    else:
-        time_str = "??:??"
+    time_str = format_apple_timestamp_for_display(timestamp)
     
     # Prepare content lines
     content_lines = []
@@ -168,9 +257,7 @@ def pretty_print_bubble(message: Dict[str, Any], width: int = 60, show_ascii_art
     image_attachments = []
     for attachment in attachments:
         if attachment.get('filename'):
-            from pathlib import Path
-            file_ext = Path(attachment['filename']).suffix.lower()
-            if file_ext in {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.heic', '.heif'}:
+            if is_supported_file_type(attachment['filename'], IMAGE_EXTENSIONS):
                 image_attachments.append(attachment)
     
     # Build bubble
@@ -191,15 +278,10 @@ def pretty_print_bubble(message: Dict[str, Any], width: int = 60, show_ascii_art
         
         # Add ASCII art for image attachments
         if image_attachments:
-            bubble_lines.append(' ' * padding + '│' + ' ' * (max_len + 2) + '│')
-            for attachment in image_attachments[:1]:  # Show first image only
-                ascii_art = get_ascii_art_for_attachment(attachment, enable_ascii=show_ascii_art)
-                art_lines = ascii_art.split('\n')
-                for art_line in art_lines:
-                    if len(art_line) > max_len:
-                        art_line = art_line[:max_len]
-                    art_padding = max_len - len(art_line)
-                    bubble_lines.append(' ' * padding + '│ ' + art_line + ' ' * art_padding + ' │')
+            attachment_lines = format_attachment_for_bubble(
+                image_attachments, max_len, ' ' * padding, show_ascii_art
+            )
+            bubble_lines.extend(attachment_lines)
         
         # Bottom with tail
         bubble_lines.append(' ' * padding + '└' + '─' * (max_len + 2) + '┘')
@@ -229,15 +311,10 @@ def pretty_print_bubble(message: Dict[str, Any], width: int = 60, show_ascii_art
         
         # Add ASCII art for image attachments
         if image_attachments:
-            bubble_lines.append('│' + ' ' * (max_len + 2) + '│')
-            for attachment in image_attachments[:1]:  # Show first image only
-                ascii_art = get_ascii_art_for_attachment(attachment, enable_ascii=show_ascii_art)
-                art_lines = ascii_art.split('\n')
-                for art_line in art_lines:
-                    if len(art_line) > max_len:
-                        art_line = art_line[:max_len]
-                    art_padding = max_len - len(art_line)
-                    bubble_lines.append('│ ' + art_line + ' ' * art_padding + ' │')
+            attachment_lines = format_attachment_for_bubble(
+                image_attachments, max_len, '', show_ascii_art
+            )
+            bubble_lines.extend(attachment_lines)
         
         # Bottom of bubble
         bubble_lines.append('└' + '─' * (max_len + 2) + '┘')
@@ -261,31 +338,10 @@ def pretty_print_reaction(message: Dict[str, Any]) -> str:
     timestamp = message.get('date', 0)
     
     # Format timestamp
-    if isinstance(timestamp, (int, float)) and timestamp > 0:
-        apple_epoch = 978307200  # 2001-01-01 in Unix time
-        unix_timestamp = (timestamp / 1_000_000_000) + apple_epoch
-        dt = datetime.fromtimestamp(unix_timestamp)
-        time_str = dt.strftime("%H:%M")
-    else:
-        time_str = "??:??"
+    time_str = format_apple_timestamp_for_display(timestamp)
     
-    # Map reaction types to emojis
-    reaction_map = {
-        2000: "❤️",    # Love
-        2001: "👍",    # Like  
-        2002: "👎",    # Dislike
-        2003: "😂",    # Laugh
-        2004: "‼️",    # Emphasis
-        2005: "❓",    # Question
-        3000: "💔",    # Remove Love
-        3001: "👎",    # Remove Like
-        3002: "👍",    # Remove Dislike
-        3003: "😐",    # Remove Laugh
-        3004: "📍",    # Remove Emphasis
-        3005: "❔",    # Remove Question
-    }
-    
-    reaction_emoji = reaction_map.get(associated_type, "🔄")
+    # Get reaction emoji from constants
+    reaction_emoji = REACTION_EMOJIS.get(associated_type, "🔄")
     is_removal = associated_type >= 3000
     action = "removed" if is_removal else "added"
     sender = "You" if is_from_me else handle_id
@@ -318,13 +374,7 @@ def pretty_print_sticker(message: Dict[str, Any], show_ascii_art: bool = False) 
     sticker_attachments = [a for a in attachments if a.get('is_sticker', False)]
     
     # Format timestamp
-    if isinstance(timestamp, (int, float)) and timestamp > 0:
-        apple_epoch = 978307200  # 2001-01-01 in Unix time
-        unix_timestamp = (timestamp / 1_000_000_000) + apple_epoch
-        dt = datetime.fromtimestamp(unix_timestamp)
-        time_str = dt.strftime("%H:%M")
-    else:
-        time_str = "??:??"
+    time_str = format_apple_timestamp_for_display(timestamp)
     
     sender = "You" if is_from_me else handle_id
     
@@ -393,7 +443,7 @@ def pretty_print_sticker(message: Dict[str, Any], show_ascii_art: bool = False) 
     # Apply alignment based on sender
     if is_from_me:
         # Right-align for stickers from me
-        terminal_width = 80  # Default terminal width
+        terminal_width = get_terminal_width()
         max_content_width = max(len(line) for line in sticker_content)
         
         # Add sender and time (right-aligned)
@@ -675,85 +725,3 @@ def display_outbound_config(outbound_config) -> str:
         "rate_limit_per_minute": outbound_config.rate_limit_per_minute,
     })
 
-
-# Statistics Display
-def format_stats_table(stats: Dict[str, Any]) -> str:
-    """Format statistics as a readable table."""
-    pass
-
-
-def display_monitor_stats(
-    messages_processed: int,
-    messages_stored: int,
-    errors: int,
-    uptime_seconds: float
-) -> str:
-    """Display monitor statistics."""
-    pass
-
-
-def display_storage_stats(storage_stats: Dict[str, int]) -> str:
-    """Display storage operation statistics."""
-    pass
-
-
-def display_outbound_stats(outbound_stats: Dict[str, int]) -> str:
-    """Display outbound message statistics."""
-    pass
-
-
-# Status Display
-def format_status_indicator(is_healthy: bool) -> str:
-    """Format health status indicator."""
-    pass
-
-
-def display_connection_status(
-    apple_db_connected: bool,
-    imessage_db_connected: bool,
-    permissions_ok: bool
-) -> str:
-    """Display connection and permission status."""
-    pass
-
-
-def display_monitor_health(status_dict: Dict[str, Any]) -> str:
-    """Display overall monitor health status."""
-    pass
-
-
-# Progress and Activity Indicators
-def create_progress_bar(current: int, total: int, width: int = 50) -> str:
-    """Create a progress bar for startup message processing."""
-    pass
-
-
-def format_activity_indicator(is_active: bool) -> str:
-    """Format activity indicator for live monitoring."""
-    pass
-
-
-# Color and Styling (if terminal supports it)
-def colorize_text(text: str, color: str) -> str:
-    """Add color codes to text if terminal supports it."""
-    pass
-
-
-def style_incoming_message(text: str) -> str:
-    """Style incoming message text."""
-    pass
-
-
-def style_outgoing_message(text: str) -> str:
-    """Style outgoing message text."""
-    pass
-
-
-def style_error_text(text: str) -> str:
-    """Style error message text."""
-    pass
-
-
-def style_success_text(text: str) -> str:
-    """Style success message text."""
-    pass
