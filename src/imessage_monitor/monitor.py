@@ -93,7 +93,7 @@ class iMessageMonitor:
         Returns:
             List of message dictionaries with full parsing
         """
-        return get_recent_messages(self._db_path, limit, date_range=self.config.date_range)
+        return get_recent_messages(self._db_path, limit, date_range=self.config.date_range, contact_filter=self.config.contacts)
     
     def get_recent_messages_batched(self, limit: int = 50):
         """Get recent messages in batches based on max_batch_size config.
@@ -109,7 +109,7 @@ class iMessageMonitor:
         
         while offset < limit:
             current_batch_size = min(batch_size, limit - offset)
-            batch = get_recent_messages(self._db_path, current_batch_size, offset, date_range=self.config.date_range)
+            batch = get_recent_messages(self._db_path, current_batch_size, offset, date_range=self.config.date_range, contact_filter=self.config.contacts)
             
             if not batch:  # No more messages
                 break
@@ -148,8 +148,8 @@ class iMessageMonitor:
             newest_id = new_message_ids[0][0]
             message_count = len(new_message_ids)
             
-            # Get full message data for all new messages (monitoring ignores date_range filters)
-            return get_recent_messages(self._db_path, message_count)
+            # Get full message data for all new messages (monitoring ignores date_range but respects contact filters)
+            return get_recent_messages(self._db_path, message_count, contact_filter=self.config.contacts)
             
         except Exception as e:
             print(f"Error getting messages since {message_id}: {e}")

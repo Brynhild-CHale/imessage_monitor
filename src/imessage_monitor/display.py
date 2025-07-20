@@ -605,9 +605,10 @@ def format_config_for_display(config) -> str:
     output += "\n"
     
     output += display_config_section("contacts", {
-        "phone_numbers": config.contacts.phone_numbers,
-        "include_unknown": config.contacts.include_unknown,
-        "group_chats": config.contacts.group_chats
+        "outbound_behavior": config.contacts.outbound_behavior,
+        "outbound_ids": config.contacts.outbound_ids,
+        "inbound_behavior": config.contacts.inbound_behavior,
+        "inbound_ids": config.contacts.inbound_ids
     })
     output += "\n"
     
