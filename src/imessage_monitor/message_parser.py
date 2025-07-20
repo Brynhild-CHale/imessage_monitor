@@ -5,6 +5,9 @@ import plistlib
 import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from datetime import datetime
+from .utils import datetime_to_apple_timestamp
+from .config import DateRange
 
 
 def decode_attributed_body(attributed_body: bytes) -> Optional[str]:
@@ -292,14 +295,34 @@ def analyze_payload_data(payload_data: bytes) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_recent_messages(db_path: str, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+def get_recent_messages(db_path: str, limit: int = 50, offset: int = 0, date_range: Optional[DateRange] = None) -> List[Dict[str, Any]]:
     """Get recent messages with all associated data."""
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         cursor = conn.cursor()
         
+        # Build date filter conditions and parameters
+        date_conditions = []
+        query_params = []
+        
+        if date_range:
+            if date_range.start_date:
+                start_timestamp = datetime_to_apple_timestamp(date_range.start_date)
+                date_conditions.append("m.date >= ?")
+                query_params.append(start_timestamp)
+            
+            if date_range.end_date:
+                end_timestamp = datetime_to_apple_timestamp(date_range.end_date)
+                date_conditions.append("m.date <= ?")
+                query_params.append(end_timestamp)
+        
+        # Build WHERE clause
+        where_clause = ""
+        if date_conditions:
+            where_clause = "WHERE " + " AND ".join(date_conditions)
+        
         # Complex query to get messages with all related data
-        query = """
+        query = f"""
         SELECT 
             m.ROWID as message_id,
             m.guid as message_guid,
@@ -359,12 +382,15 @@ def get_recent_messages(db_path: str, limit: int = 50, offset: int = 0) -> List[
         LEFT JOIN message_attachment_join maj ON m.ROWID = maj.message_id
         LEFT JOIN attachment a ON maj.attachment_id = a.ROWID
         
+        {where_clause}
         GROUP BY m.ROWID
         ORDER BY m.date DESC
         LIMIT ? OFFSET ?
         """
         
-        cursor.execute(query, (limit, offset))
+        # Add limit and offset to parameters
+        query_params.extend([limit, offset])
+        cursor.execute(query, query_params)
         results = cursor.fetchall()
         
         # Get column names

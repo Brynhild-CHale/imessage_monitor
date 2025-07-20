@@ -36,14 +36,14 @@ class iMessageMonitor:
         if not Path(self._db_path).exists():
             raise FileNotFoundError(f"Messages database not found at {self._db_path}")
     
-    def start(self, message_callback: Optional[Callable] = None) -> List[Dict[str, Any]]:
+    def start(self, message_callback: Optional[Callable] = None) -> bool:
         """Start monitoring for new messages.
         
         Args:
             message_callback: Optional callback function to handle new messages
         
         Returns:
-            List of all recent messages (initial data)
+            True if monitoring started successfully, False otherwise
         """
         if self._is_running:
             raise RuntimeError("Monitor is already running")
@@ -51,19 +51,23 @@ class iMessageMonitor:
         self._is_running = True
         self._message_callback = message_callback
         
-        # Get initial messages
-        limit = getattr(self.config, 'initial_message_limit', 100)
-        messages = get_recent_messages(self._db_path, limit)
-        
-        # Set the last message ID to track new messages
-        if messages:
-            self._last_message_id = messages[0]['message_id']
+        # Set starting point for monitoring (current latest message ID)
+        try:
+            conn = sqlite3.connect(f"file:{self._db_path}?mode=ro", uri=True)
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAX(ROWID) FROM message")
+            result = cursor.fetchone()
+            self._last_message_id = result[0] if result[0] is not None else 0
+            conn.close()
+        except Exception as e:
+            print(f"Warning: Could not determine starting message ID: {e}")
+            self._last_message_id = 0
         
         # Start monitoring task if callback provided
         if message_callback:
             self._monitor_task = asyncio.create_task(self._monitor_loop())
         
-        return messages
+        return True
     
     def stop(self):
         """Stop monitoring for messages."""
@@ -89,7 +93,7 @@ class iMessageMonitor:
         Returns:
             List of message dictionaries with full parsing
         """
-        return get_recent_messages(self._db_path, limit)
+        return get_recent_messages(self._db_path, limit, date_range=self.config.date_range)
     
     def get_recent_messages_batched(self, limit: int = 50):
         """Get recent messages in batches based on max_batch_size config.
@@ -105,7 +109,7 @@ class iMessageMonitor:
         
         while offset < limit:
             current_batch_size = min(batch_size, limit - offset)
-            batch = get_recent_messages(self._db_path, current_batch_size, offset)
+            batch = get_recent_messages(self._db_path, current_batch_size, offset, date_range=self.config.date_range)
             
             if not batch:  # No more messages
                 break
@@ -144,7 +148,7 @@ class iMessageMonitor:
             newest_id = new_message_ids[0][0]
             message_count = len(new_message_ids)
             
-            # Get full message data for all new messages
+            # Get full message data for all new messages (monitoring ignores date_range filters)
             return get_recent_messages(self._db_path, message_count)
             
         except Exception as e:
