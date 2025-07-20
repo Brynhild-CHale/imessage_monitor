@@ -9,8 +9,8 @@ max_batch_size = 1000
 enable_real_time = true
 
 [contacts]
-outbound_behavior = "none" # "whitelist" | "blacklist" | "none"
-outbound_ids = []
+outbound_behavior = "blacklist" # "whitelist" | "blacklist" | "none"
+outbound_ids = ["19796656972"]
 inbound_behavior = "none" # "whitelist" | "blacklist" | "none"
 inbound_ids = []
 

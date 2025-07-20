@@ -369,11 +369,11 @@ class ShortcutsSender:
             
             # Use the "Send Message" shortcut with input data
             input_data = {
-                "recipient": recipient,
+                "recipients": recipient,
                 "message": message
             }
             
-            return await self.execute_shortcut("Send Message", input_data)
+            return await self.execute_shortcut("send-imessage", input_data)
             
         except Exception as e:
             raise OutboundMessageError(f"Failed to send message via Shortcuts: {e}")
@@ -445,7 +445,7 @@ class ShortcutsSender:
             
             # Check if required shortcuts exist
             shortcuts_list = result.stdout.strip().split('\n')
-            required_shortcuts = ['Send Message', 'Send Attachment']
+            required_shortcuts = ['send-imessage', 'Send Attachment']
             
             for required in required_shortcuts:
                 if required not in shortcuts_list:

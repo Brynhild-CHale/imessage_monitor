@@ -98,6 +98,30 @@ def example_pretty_printing():
     print()
 
 
+def example_batched_iterator():
+    """Example: Iterate through messages with batch size 1."""
+    print("🔄 Batched iterator example (batch_size=1)")
+    
+    # Override config to set batch size to 1
+    config = Config.default()
+    config.monitoring.max_batch_size = 1
+    
+    monitor = iMessageMonitor()
+    monitor.config = config
+    
+    print("Getting last 10 messages, one at a time:")
+    message_count = 0
+    for batch in monitor.get_recent_messages_batched(limit=10):
+        for message in batch:
+            message_count += 1
+            sender = "You" if message.get('is_from_me') else message.get('handle_id_str', 'Unknown')
+            content = message.get('message_text') or '[Media]'
+            print(f"  Message {message_count}: {sender} - {content[:30]}...")
+    
+    print(f"Processed {message_count} messages in individual batches")
+    print()
+
+
 async def main():
     """Run all examples."""
     print("iMessage Monitor - Examples\n")
@@ -106,6 +130,7 @@ async def main():
     example_recent_messages()
     example_contact_filtering()
     example_pretty_printing()
+    example_batched_iterator()
     
     # Real-time example (uncomment to run)
     # await example_real_time_monitoring()
@@ -118,9 +143,9 @@ async def main():
         try:
             from imessage_monitor.outbound import AppleScriptSender
             sender = AppleScriptSender()
-            message = "Welcome to imessage-monitor!"
+            message = "AppleScript welcomes you to imessage-monitor!"
             
-            print(f"Sending welcome message to {choice}...")
+            print(f"Sending welcome message to {choice} using AppleScript ...")
             success = await sender.send_text_message(choice, message)
             
             if success:
@@ -130,6 +155,21 @@ async def main():
         except Exception as e:
             print(f"❌ Error sending message: {e}")
     
+        try:
+            from imessage_monitor.outbound import ShortcutsSender
+            sender = ShortcutsSender()
+            message = "Shortcuts welcomes you to imessage-monitor!"
+            
+            print(f"Sending welcome message to {choice} using Shortcuts ...")
+            success = await sender.send_text_message(choice, message)
+            
+            if success:
+                print("✅ Message sent successfully!")
+            else:
+                print("❌ Failed to send message")
+        except Exception as e:
+            print(f"❌ Error sending message: {e}")
+
     print("👋 Goodbye!")
 
 
