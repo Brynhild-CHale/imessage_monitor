@@ -558,10 +558,47 @@ class OutboundStats:
 class ImessageOutbound:
     """Simple interface for sending iMessage messages and attachments."""
     
-    def __init__(self):
-        """Initialize the outbound interface."""
+    def __init__(self, config=None):
+        """Initialize the outbound interface.
+        
+        Args:
+            config: Optional config to use for contact filtering. If None, uses default config.
+        """
+        if config is None:
+            from .config import Config
+            config = Config.default()
+        self.config = config
         self.applescript_sender = AppleScriptSender()
         self.shortcuts_sender = ShortcutsSender()
+    
+    def _check_outbound_allowed(self, recipient: str) -> tuple[bool, str]:
+        """Check if outbound message to recipient is allowed by contact filter.
+        
+        Args:
+            recipient: Phone number or email address
+            
+        Returns:
+            Tuple of (is_allowed, reason_if_blocked)
+        """
+        contact_filter = self.config.contacts
+        
+        # If no filtering is enabled, allow all
+        if contact_filter.outbound_behavior == "none":
+            return True, ""
+        
+        # Check whitelist
+        if contact_filter.outbound_behavior == "whitelist":
+            if recipient not in contact_filter.outbound_ids:
+                return False, f"Recipient '{recipient}' not in outbound whitelist"
+            return True, ""
+        
+        # Check blacklist
+        if contact_filter.outbound_behavior == "blacklist":
+            if recipient in contact_filter.outbound_ids:
+                return False, f"Recipient '{recipient}' is in outbound blacklist"
+            return True, ""
+        
+        return True, ""
     
     def send_message_applescript(self, recipient: str, message: str) -> bool:
         """Send message using AppleScript.
@@ -574,8 +611,13 @@ class ImessageOutbound:
             True if successful, False otherwise
             
         Raises:
-            OutboundMessageError: If sending fails
+            OutboundMessageError: If sending fails or blocked by contact filter
         """
+        # Check contact filter first
+        allowed, reason = self._check_outbound_allowed(recipient)
+        if not allowed:
+            raise OutboundMessageError(f"Message blocked by contact filter: {reason}")
+        
         try:
             import asyncio
             loop = asyncio.get_event_loop()
@@ -596,8 +638,13 @@ class ImessageOutbound:
             True if successful, False otherwise
             
         Raises:
-            OutboundMessageError: If sending fails or shortcut not found
+            OutboundMessageError: If sending fails, shortcut not found, or blocked by contact filter
         """
+        # Check contact filter first
+        allowed, reason = self._check_outbound_allowed(recipient)
+        if not allowed:
+            raise OutboundMessageError(f"Message blocked by contact filter: {reason}")
+        
         try:
             # Check if shortcuts are available first
             if not self.shortcuts_sender.validate_shortcuts_available():
@@ -629,8 +676,13 @@ class ImessageOutbound:
             True if successful, False otherwise
             
         Raises:
-            OutboundMessageError: If sending fails
+            OutboundMessageError: If sending fails or blocked by contact filter
         """
+        # Check contact filter first
+        allowed, reason = self._check_outbound_allowed(recipient)
+        if not allowed:
+            raise OutboundMessageError(f"Attachment blocked by contact filter: {reason}")
+        
         try:
             from pathlib import Path
             path_obj = Path(file_path)
@@ -657,8 +709,13 @@ class ImessageOutbound:
             True if successful, False otherwise
             
         Raises:
-            OutboundMessageError: If sending fails or shortcut not found
+            OutboundMessageError: If sending fails, shortcut not found, or blocked by contact filter
         """
+        # Check contact filter first
+        allowed, reason = self._check_outbound_allowed(recipient)
+        if not allowed:
+            raise OutboundMessageError(f"Attachment blocked by contact filter: {reason}")
+        
         try:
             from pathlib import Path
             path_obj = Path(file_path)
