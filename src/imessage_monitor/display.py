@@ -613,6 +613,30 @@ def format_message_time(dt: datetime) -> str:
     return dt.strftime("%H:%M:%S")
 
 
+def simple_print(message: Dict[str, Any]) -> str:
+    """Simple message output format: datetime; sender (or you); message_text
+    
+    Args:
+        message: Message dictionary from iMessageMonitor
+        
+    Returns:
+        Simple formatted string with datetime, sender, and message text
+    """
+    # Extract message info
+    content = message.get('message_text') or message.get('decoded_attributed_body') or '[No content]'
+    is_from_me = message.get('is_from_me', False)
+    handle_id = message.get('handle_id_str', 'Unknown')
+    timestamp = message.get('date', 0)
+    
+    # Format timestamp (convert from Apple timestamp if needed)
+    time_str = format_apple_timestamp_for_display(timestamp)
+    
+    # Determine sender
+    sender = "you" if is_from_me else handle_id
+    
+    return f"{time_str}; {sender}; {content}"
+
+
 def format_duration(seconds: float) -> str:
     """Format duration for display (1m 30s, 2h 15m)."""
     if seconds < 60:
